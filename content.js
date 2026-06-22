@@ -1,12 +1,28 @@
-// --- STATE ---
 let panelOpen = false;
 let shadowRoot = null;
 let selectedElement = null;
 let overlays = [];
-let failedElementsData = []; // Menyimpan referensi elemen yang gagal untuk navigasi
+let failedElementsData = [];
+let swcc_act = 'AA';
+let swcc_p_st = null;
+let swcc_s_st = null;
+let swcc_d_on = false;
+let swcc_d_ox = 0;
+let swcc_d_oy = 0;
+let swcc_r_on = false;
+let swcc_r_ox = 0;
+let swcc_r_oy = 0;
+let swcc_r_ow = 0;
+let swcc_r_oh = 0;
 
-// --- INITIALIZATION (PERSISTENCE LOGIC) ---
-chrome.storage.local.get(['mm_wcag_active'], (result) => {
+const SWCC_MRG = 8;
+const SWCC_MNW = 300;
+const SWCC_MNH = 360;
+
+chrome.storage.local.get(['mm_wcag_active', 'swcc_std', 'swcc_pos', 'swcc_siz'], (result) => {
+    swcc_act = result.swcc_std === 'AAA' ? 'AAA' : 'AA';
+    swcc_p_st = result.swcc_pos || null;
+    swcc_s_st = result.swcc_siz || null;
     if (result.mm_wcag_active) {
         setTimeout(() => {
             togglePanel(true);
@@ -14,14 +30,18 @@ chrome.storage.local.get(['mm_wcag_active'], (result) => {
     }
 });
 
-// Listener Tombol ESC
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && panelOpen) {
         togglePanel(false);
     }
 });
 
-// --- UTILS: COLOR ---
+window.addEventListener('resize', () => {
+    if (!panelOpen || !shadowRoot) return;
+    const panel = shadowRoot.querySelector('.mm-panel');
+    if (panel) swcc_clmp(panel);
+});
+
 function sRGBtoLin(c) {
     c = c / 255;
     return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
@@ -75,7 +95,6 @@ function getEffectiveBackgroundColor(el) {
     return 'rgb(255, 255, 255)';
 }
 
-// --- UTILS: CSS SELECTOR GENERATOR ---
 function getCssSelector(el) {
     let path = [];
     let current = el;
@@ -83,15 +102,13 @@ function getCssSelector(el) {
     while (current && current.nodeType === Node.ELEMENT_NODE) {
         if (current.id) {
             path.unshift('#' + current.id);
-            break; // Jika sudah nemu ID, stop karena ID itu unik
+            break;
         } else if (current.className && typeof current.className === 'string' && current.className.trim() !== '') {
-            // Jika ada class, ambil maksimal 3 class pertama (agar jika pakai framework spt Tailwind tidak kepanjangan)
             let classesArray = current.className.trim().split(/\s+/);
             let classes = classesArray.slice(0, 3).join('.');
             path.unshift(current.tagName.toLowerCase() + '.' + classes);
-            break; // Stop di parent terdekat yang punya class
+            break;
         } else {
-            // Jika tidak ada keduanya, ambil tag html nya dan lanjut ke parent
             path.unshift(current.tagName.toLowerCase());
         }
 
@@ -105,13 +122,181 @@ function getCssSelector(el) {
     return path.join(' > ');
 }
 
-// --- CORE: SCANNER & OVERLAY ---
+function swcc_lrg(el) {
+    if (!el) return false;
+    const style = window.getComputedStyle(el);
+    const fontSize = parseFloat(style.fontSize);
+    const isBold = parseInt(style.fontWeight) >= 700 || style.fontWeight === 'bold';
+    return (fontSize >= 24) || (isBold && fontSize >= 18.6);
+}
+
+function swcc_aaOk(ratio, large) {
+    return ratio >= (large ? 3.0 : 4.5);
+}
+
+function swcc_aaaOk(ratio, large) {
+    return ratio >= (large ? 4.5 : 7.0);
+}
+
+function swcc_fail(ratio, large, std) {
+    if (std === 'AAA') return !swcc_aaaOk(ratio, large);
+    return !swcc_aaOk(ratio, large);
+}
+
+function swcc_clp(left, top, w, h) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const minL = SWCC_MRG - w;
+    const maxL = vw - SWCC_MRG;
+    const minT = SWCC_MRG - h;
+    const maxT = vh - SWCC_MRG;
+    return {
+        left: Math.max(minL, Math.min(left, maxL)),
+        top: Math.max(minT, Math.min(top, maxT))
+    };
+}
+
+function swcc_max(w, h, left, top) {
+    const maxW = window.innerWidth - left - SWCC_MRG;
+    const maxH = window.innerHeight - top - SWCC_MRG;
+    return {
+        width: Math.max(SWCC_MNW, Math.min(w, maxW)),
+        height: Math.max(SWCC_MNH, Math.min(h, maxH))
+    };
+}
+
+function swcc_app(panel, save) {
+    if (!panel || !swcc_p_st || !swcc_s_st) return;
+    const sized = swcc_max(swcc_s_st.width, swcc_s_st.height, swcc_p_st.left, swcc_p_st.top);
+    const pos = swcc_clp(swcc_p_st.left, swcc_p_st.top, sized.width, sized.height);
+    panel.style.right = 'auto';
+    panel.style.left = pos.left + 'px';
+    panel.style.top = pos.top + 'px';
+    panel.style.width = sized.width + 'px';
+    panel.style.height = sized.height + 'px';
+    if (save) swcc_sav(panel);
+}
+
+function swcc_clmp(panel) {
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    const sized = swcc_max(rect.width, rect.height, rect.left, rect.top);
+    const pos = swcc_clp(rect.left, rect.top, sized.width, sized.height);
+    panel.style.right = 'auto';
+    panel.style.left = pos.left + 'px';
+    panel.style.top = pos.top + 'px';
+    panel.style.width = sized.width + 'px';
+    panel.style.height = sized.height + 'px';
+}
+
+function swcc_sav(panel) {
+    const rect = panel.getBoundingClientRect();
+    swcc_p_st = { left: rect.left, top: rect.top };
+    swcc_s_st = { width: rect.width, height: rect.height };
+    chrome.storage.local.set({ swcc_pos: swcc_p_st, swcc_siz: swcc_s_st });
+}
+
+function swcc_set(std) {
+    swcc_act = std;
+    chrome.storage.local.set({ swcc_std: std });
+    swcc_ui();
+    scanPage();
+}
+
+function swcc_ui() {
+    if (!shadowRoot) return;
+    const aaBtn = shadowRoot.getElementById('swcc-std-aa');
+    const aaaBtn = shadowRoot.getElementById('swcc-std-aaa');
+    if (!aaBtn || !aaaBtn) return;
+    const isAA = swcc_act === 'AA';
+    aaBtn.setAttribute('aria-pressed', isAA ? 'true' : 'false');
+    aaaBtn.setAttribute('aria-pressed', isAA ? 'false' : 'true');
+    aaBtn.classList.toggle('swcc-std-on', isAA);
+    aaaBtn.classList.toggle('swcc-std-on', !isAA);
+    const lbl = shadowRoot.getElementById('swcc-iss-lbl');
+    if (lbl) lbl.textContent = 'Issues Found (' + swcc_act + '):';
+}
+
+function swcc_drg(panel, hdr) {
+    hdr.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.mm-header-actions')) return;
+        if (e.target.closest('button')) return;
+        e.preventDefault();
+        swcc_d_on = true;
+        const rect = panel.getBoundingClientRect();
+        panel.style.right = 'auto';
+        panel.style.left = rect.left + 'px';
+        panel.style.top = rect.top + 'px';
+        swcc_d_ox = e.clientX - rect.left;
+        swcc_d_oy = e.clientY - rect.top;
+        hdr.setPointerCapture(e.pointerId);
+        hdr.classList.add('swcc-grab');
+        document.body.style.userSelect = 'none';
+    });
+    hdr.addEventListener('pointermove', (e) => {
+        if (!swcc_d_on) return;
+        const w = panel.offsetWidth;
+        const h = panel.offsetHeight;
+        const pos = swcc_clp(e.clientX - swcc_d_ox, e.clientY - swcc_d_oy, w, h);
+        panel.style.left = pos.left + 'px';
+        panel.style.top = pos.top + 'px';
+    });
+    const endDrag = (e) => {
+        if (!swcc_d_on) return;
+        swcc_d_on = false;
+        hdr.releasePointerCapture(e.pointerId);
+        hdr.classList.remove('swcc-grab');
+        document.body.style.userSelect = '';
+        swcc_sav(panel);
+    };
+    hdr.addEventListener('pointerup', endDrag);
+    hdr.addEventListener('pointercancel', endDrag);
+}
+
+function swcc_rsz(panel, handle) {
+    handle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        swcc_r_on = true;
+        const rect = panel.getBoundingClientRect();
+        panel.style.right = 'auto';
+        panel.style.left = rect.left + 'px';
+        panel.style.top = rect.top + 'px';
+        swcc_r_ox = e.clientX;
+        swcc_r_oy = e.clientY;
+        swcc_r_ow = rect.width;
+        swcc_r_oh = rect.height;
+        handle.setPointerCapture(e.pointerId);
+    });
+    handle.addEventListener('pointermove', (e) => {
+        if (!swcc_r_on) return;
+        const rect = panel.getBoundingClientRect();
+        const sized = swcc_max(
+            swcc_r_ow + (e.clientX - swcc_r_ox),
+            swcc_r_oh + (e.clientY - swcc_r_oy),
+            rect.left,
+            rect.top
+        );
+        panel.style.width = sized.width + 'px';
+        panel.style.height = sized.height + 'px';
+        const pos = swcc_clp(rect.left, rect.top, sized.width, sized.height);
+        panel.style.left = pos.left + 'px';
+        panel.style.top = pos.top + 'px';
+    });
+    const endRsz = (e) => {
+        if (!swcc_r_on) return;
+        swcc_r_on = false;
+        handle.releasePointerCapture(e.pointerId);
+        swcc_sav(panel);
+    };
+    handle.addEventListener('pointerup', endRsz);
+    handle.addEventListener('pointercancel', endRsz);
+}
 
 function scanPage() {
     clearOverlays();
     failedElementsData = [];
 
-    // Inject CSS Global untuk Overlay Shield & Tooltip Selector
     if (!document.getElementById('mm-global-styles')) {
         const style = document.createElement('style');
         style.id = 'mm-global-styles';
@@ -119,7 +304,7 @@ function scanPage() {
             .mm-overlay-box {
                 position: absolute;
                 z-index: 2147483640;
-                background-color: rgba(255, 255, 255, 0.001); /* Anti-Hover Shield */
+                background-color: rgba(255, 255, 255, 0.001);
                 cursor: pointer;
                 box-sizing: border-box;
                 border: 2px solid #ff0000;
@@ -145,7 +330,6 @@ function scanPage() {
             .mm-overlay-box.active .mm-overlay-label {
                 background: #00e5ff; color: #000;
             }
-            /* Tooltip CSS Selector */
             .mm-selector-tooltip {
                 position: absolute;
                 left: 0;
@@ -161,7 +345,7 @@ function scanPage() {
                 z-index: 2147483645;
                 box-shadow: 0 4px 8px rgba(0,0,0,0.5);
                 max-width: 300px;
-                pointer-events: auto; /* Bisa diklik */
+                pointer-events: auto;
             }
             .mm-sel-text {
                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -209,16 +393,10 @@ function processElement(el) {
     const style = window.getComputedStyle(el);
     const fg = rgbToHex(style.color) || '#000000';
     const bg = rgbToHex(getEffectiveBackgroundColor(el)) || '#ffffff';
-
     const ratio = getContrastRatio(fg, bg);
+    const isLarge = swcc_lrg(el);
 
-    const fontSize = parseFloat(style.fontSize);
-    const isBold = parseInt(style.fontWeight) >= 700 || style.fontWeight === 'bold';
-    const isLarge = (fontSize >= 24) || (isBold && fontSize >= 18.6);
-
-    const aaPass = ratio >= (isLarge ? 3.0 : 4.5);
-
-    if (!aaPass) {
+    if (swcc_fail(ratio, isLarge, swcc_act)) {
         const overlay = createOverlayBox(el, ratio, fg, bg);
 
         let labelText = el.innerText.substring(0, 20);
@@ -265,11 +443,9 @@ function createOverlayBox(targetEl, ratio, fg, bg) {
     return div;
 }
 
-// Fungsi utama untuk Handle Klik dan Munculkan Tooltip
 function activateElement(targetEl, overlayEl, fg, bg, ratio) {
     selectedElement = targetEl;
 
-    // Bersihkan semua highlight active dan hapus tooltip lama (jika ada)
     document.querySelectorAll('.mm-overlay-box').forEach(o => {
         o.classList.remove('active');
         const oldTooltip = o.querySelector('.mm-selector-tooltip');
@@ -279,7 +455,6 @@ function activateElement(targetEl, overlayEl, fg, bg, ratio) {
     if (overlayEl) {
         overlayEl.classList.add('active');
 
-        // --- BUAT TOOLTIP SELECTOR CSS ---
         const selectorText = getCssSelector(targetEl);
         const tooltip = document.createElement('div');
         tooltip.className = 'mm-selector-tooltip';
@@ -288,9 +463,8 @@ function activateElement(targetEl, overlayEl, fg, bg, ratio) {
             <button class="mm-sel-copy" title="Copy to clipboard">📋 Copy</button>
         `;
 
-        // Event Copy Clipboard
         tooltip.querySelector('.mm-sel-copy').addEventListener('click', (e) => {
-            e.stopPropagation(); // Biar overlay gak ke-klik lagi
+            e.stopPropagation();
             navigator.clipboard.writeText(selectorText).then(() => {
                 const btn = e.target;
                 btn.textContent = '✔ Copied';
@@ -306,28 +480,23 @@ function activateElement(targetEl, overlayEl, fg, bg, ratio) {
 
         overlayEl.appendChild(tooltip);
 
-        // --- ATUR POSISI RESPONSIVE ---
         const rect = overlayEl.getBoundingClientRect();
 
-        // Cek ruang atas (Y-Axis)
         if (rect.top < 40) {
-            // Jika mepet atas, tampilkan di bawah elemen
             tooltip.style.bottom = 'auto';
             tooltip.style.top = '100%';
             tooltip.style.marginTop = '4px';
         } else {
-            // Default: Tampilkan di atas elemen
             tooltip.style.bottom = '100%';
             tooltip.style.top = 'auto';
             tooltip.style.marginBottom = '4px';
         }
 
-        // Cek ruang kanan (X-Axis) setelah elemen dirender oleh browser
         setTimeout(() => {
             const tRect = tooltip.getBoundingClientRect();
             if (tRect.right > window.innerWidth) {
                 tooltip.style.left = 'auto';
-                tooltip.style.right = '0'; // Align mentok ke kanan
+                tooltip.style.right = '0';
             }
         }, 0);
     }
@@ -340,8 +509,6 @@ function clearOverlays() {
     overlays.forEach(o => o.remove());
     overlays = [];
 }
-
-// --- PANEL UI & SUMMARY ---
 
 function createPanel() {
     if (document.getElementById('mm-wcag-host')) return;
@@ -358,7 +525,7 @@ function createPanel() {
     const wrapper = document.createElement('div');
     wrapper.className = 'mm-panel';
     wrapper.innerHTML = `
-        <div class="mm-header">
+        <div class="mm-header swcc-drag">
             <span class="mm-header-title">Simple WCAG Contrast Checker <small>v1.0.0</small></span>
             <div class="mm-header-actions">
                 <button id="mm-rescan" type="button" title="Rescan Page" aria-label="Rescan page">↻</button>
@@ -367,23 +534,30 @@ function createPanel() {
         </div>
         
         <div class="mm-body">
+            <div class="swcc-std-row">
+                <span class="swcc-std-lbl">Standard:</span>
+                <div class="swcc-std-grp" role="group" aria-label="WCAG contrast standard">
+                    <button type="button" id="swcc-std-aa" class="swcc-std-btn" aria-pressed="true">AA</button>
+                    <button type="button" id="swcc-std-aaa" class="swcc-std-btn" aria-pressed="false">AAA</button>
+                </div>
+            </div>
             <div class="mm-summary-box">
                 <div class="mm-summary-title">
-                    <span>⚠️ Issues Found:</span>
+                    <span id="swcc-iss-lbl">Issues Found (AA):</span>
                     <span id="mm-issue-count">0</span>
                 </div>
                 <div class="mm-summary-list" id="mm-summary-list">
-                    <div style="padding:10px; color:#999; text-align:center;">Scanning...</div>
+                    <div class="swcc-scan-msg">Scanning...</div>
                 </div>
             </div>
 
             <div class="mm-editor-title">Selected Element</div>
             
             <div class="mm-result">
-                <div class="mm-score-val" id="mm-ratio">--.--</div>
+                <div class="swcc-ratio-lbl">Contrast Ratio: <span id="mm-ratio">--.--</span></div>
                 <div class="mm-badges">
-                    <span id="b-aa" class="mm-badge">AA</span>
-                    <span id="b-aaa" class="mm-badge">AAA</span>
+                    <span id="b-aa" class="mm-badge fail">AA: Fail</span>
+                    <span id="b-aaa" class="mm-badge fail">AAA: Fail</span>
                 </div>
             </div>
             
@@ -401,15 +575,27 @@ function createPanel() {
             </div>
         </div>
         <div class="mm-footer">Press <b>Esc</b> to close</div>
+        <div class="swcc-resize" role="presentation" aria-hidden="true"></div>
     `;
 
     shadowRoot.appendChild(wrapper);
     document.body.appendChild(host);
 
+    const panel = shadowRoot.querySelector('.mm-panel');
+    const hdr = shadowRoot.querySelector('.mm-header');
+
     shadowRoot.getElementById('mm-close').addEventListener('click', () => togglePanel(false));
-    shadowRoot.getElementById('mm-rescan').addEventListener('click', scanPage);['fg-p', 'fg-t', 'bg-p', 'bg-t'].forEach(id => {
+    shadowRoot.getElementById('mm-rescan').addEventListener('click', scanPage);
+    shadowRoot.getElementById('swcc-std-aa').addEventListener('click', () => swcc_set('AA'));
+    shadowRoot.getElementById('swcc-std-aaa').addEventListener('click', () => swcc_set('AAA'));
+    ['fg-p', 'fg-t', 'bg-p', 'bg-t'].forEach(id => {
         shadowRoot.getElementById(id).addEventListener('input', onInput);
     });
+
+    swcc_ui();
+    if (swcc_p_st && swcc_s_st) swcc_app(panel, false);
+    swcc_drg(panel, hdr);
+    swcc_rsz(panel, shadowRoot.querySelector('.swcc-resize'));
 }
 
 function updateSummaryUI() {
@@ -417,16 +603,21 @@ function updateSummaryUI() {
 
     const listContainer = shadowRoot.getElementById('mm-summary-list');
     const countLabel = shadowRoot.getElementById('mm-issue-count');
+    const issLbl = shadowRoot.getElementById('swcc-iss-lbl');
 
+    if (issLbl) issLbl.textContent = 'Issues Found (' + swcc_act + '):';
     countLabel.textContent = failedElementsData.length;
     listContainer.innerHTML = '';
 
     if (failedElementsData.length === 0) {
-        listContainer.innerHTML = `<div style="padding:10px; color:#2e7d32; text-align:center;">🎉 Great! No contrast issues found.</div>`;
+        const msg = swcc_act === 'AAA'
+            ? 'Great! No AAA contrast issues found.'
+            : 'Great! No AA contrast issues found.';
+        listContainer.innerHTML = '<div class="swcc-clean-msg">' + msg + '</div>';
         return;
     }
 
-    failedElementsData.forEach((data, index) => {
+    failedElementsData.forEach((data) => {
         const item = document.createElement('div');
         item.className = 'mm-summary-item';
         item.innerHTML = `
@@ -468,18 +659,20 @@ function updatePanelEditor(fg, bg, ratio) {
     shadowRoot.getElementById('bg-p').value = bg;
     shadowRoot.getElementById('bg-t').value = bg;
 
+    const large = swcc_lrg(selectedElement);
     const rEl = shadowRoot.getElementById('mm-ratio');
-    rEl.textContent = ratio.toFixed(2);
-    rEl.style.color = ratio < 4.5 ? '#d32f2f' : '#2e7d32';
+    rEl.textContent = ratio.toFixed(2) + ':1';
 
     const aa = shadowRoot.getElementById('b-aa');
     const aaa = shadowRoot.getElementById('b-aaa');
+    const aaPass = swcc_aaOk(ratio, large);
+    const aaaPass = swcc_aaaOk(ratio, large);
 
-    aa.className = ratio >= 4.5 ? 'mm-badge pass' : 'mm-badge fail';
-    aa.textContent = ratio >= 4.5 ? 'AA Pass' : 'AA Fail';
+    aa.className = aaPass ? 'mm-badge pass' : 'mm-badge fail';
+    aa.textContent = aaPass ? 'AA: Pass' : 'AA: Fail';
 
-    aaa.className = ratio >= 7.0 ? 'mm-badge pass' : 'mm-badge fail';
-    aaa.textContent = ratio >= 7.0 ? 'AAA Pass' : 'AAA Fail';
+    aaa.className = aaaPass ? 'mm-badge pass' : 'mm-badge fail';
+    aaa.textContent = aaaPass ? 'AAA: Pass' : 'AAA: Fail';
 }
 
 function togglePanel(forceState = null) {
@@ -492,6 +685,11 @@ function togglePanel(forceState = null) {
 
         panelOpen = true;
         chrome.storage.local.set({ mm_wcag_active: true });
+        if (shadowRoot) {
+            swcc_ui();
+            const panel = shadowRoot.querySelector('.mm-panel');
+            if (panel && swcc_p_st && swcc_s_st) swcc_app(panel, false);
+        }
         setTimeout(scanPage, 100);
     } else {
         if (host) document.getElementById('mm-wcag-host').style.display = 'none';

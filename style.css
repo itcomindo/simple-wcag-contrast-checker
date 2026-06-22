@@ -4,6 +4,9 @@
   top: 20px;
   right: 20px;
   width: 300px;
+  height: auto;
+  min-width: 300px;
+  min-height: 360px;
   background: #fff;
   border: 1px solid #ccc;
   border-radius: 8px;
@@ -14,6 +17,8 @@
   z-index: 2147483647;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .mm-header {
@@ -28,6 +33,16 @@
   gap: 12px;
   font-weight: bold;
   min-height: 44px;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.mm-header.swcc-drag {
+  cursor: grab;
+}
+
+.mm-header.swcc-grab {
+  cursor: grabbing;
 }
 
 .mm-header-title {
@@ -84,6 +99,78 @@
 
 .mm-body {
   padding: 15px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.swcc-std-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 11px;
+}
+
+.swcc-std-lbl {
+  font-weight: 600;
+  color: #555;
+  flex-shrink: 0;
+}
+
+.swcc-std-grp {
+  display: flex;
+  flex-direction: row;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.swcc-std-btn {
+  padding: 4px 14px;
+  border: none;
+  background: #f5f5f5;
+  color: #333;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.swcc-std-btn + .swcc-std-btn {
+  border-left: 1px solid #ccc;
+}
+
+.swcc-std-btn.swcc-std-on {
+  background: #2c3e50;
+  color: #fff;
+}
+
+.swcc-std-btn:hover {
+  background: #e8eef3;
+}
+
+.swcc-std-btn.swcc-std-on:hover {
+  background: #34495e;
+}
+
+.swcc-std-btn:focus-visible {
+  outline: 2px solid #2c3e50;
+  outline-offset: 1px;
+  z-index: 1;
+}
+
+.swcc-scan-msg {
+  padding: 10px;
+  color: #999;
+  text-align: center;
+}
+
+.swcc-clean-msg {
+  padding: 10px;
+  color: #2e7d32;
+  text-align: center;
+  font-size: 12px;
 }
 
 /* SUMMARY SECTION */
@@ -105,6 +192,8 @@
   max-height: 150px;
   overflow-y: auto;
   background: #fff;
+  flex-shrink: 1;
+  min-height: 40px;
 }
 .mm-summary-item {
   padding: 6px 8px;
@@ -160,6 +249,18 @@
   font-size: 32px;
   font-weight: 800;
   line-height: 1;
+}
+
+.swcc-ratio-lbl {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 6px;
+}
+
+.swcc-ratio-lbl span {
+  font-size: 18px;
+  font-weight: 800;
 }
 .mm-badges {
   display: flex;
@@ -224,4 +325,18 @@ input[type="text"] {
   font-size: 10px;
   color: #888;
   border-radius: 0 0 8px 8px;
+  flex-shrink: 0;
+}
+
+.swcc-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, #bbb 50%, #999 100%);
+  border-radius: 0 0 6px 0;
+  z-index: 2;
 }
