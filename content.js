@@ -14,15 +14,24 @@ let swcc_r_ox = 0;
 let swcc_r_oy = 0;
 let swcc_r_ow = 0;
 let swcc_r_oh = 0;
+let swcc_opc = 100;
+let swcc_nrw = false;
+let swcc_nct = false;
 
 const SWCC_MRG = 8;
 const SWCC_MNW = 300;
 const SWCC_MNH = 360;
+const SWCC_NW0 = 316;
+const SWCC_NW1 = 640;
+const SWCC_NH0 = 376;
 
-chrome.storage.local.get(['mm_wcag_active', 'swcc_std', 'swcc_pos', 'swcc_siz'], (result) => {
+chrome.storage.local.get(['mm_wcag_active', 'swcc_std', 'swcc_pos', 'swcc_siz', 'swcc_opc'], (result) => {
     swcc_act = result.swcc_std === 'AAA' ? 'AAA' : 'AA';
     swcc_p_st = result.swcc_pos || null;
     swcc_s_st = result.swcc_siz || null;
+    const opc = result.swcc_opc;
+    if (typeof opc === 'number' && opc >= 40 && opc <= 100) swcc_opc = opc;
+    else swcc_opc = 100;
     if (result.mm_wcag_active) {
         setTimeout(() => {
             togglePanel(true);
@@ -36,11 +45,23 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-window.addEventListener('resize', () => {
+window.addEventListener('resize', swcc_onRs);
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', swcc_onRs);
+    window.visualViewport.addEventListener('scroll', swcc_onRs);
+}
+
+function swcc_onRs() {
     if (!panelOpen || !shadowRoot) return;
     const panel = shadowRoot.querySelector('.mm-panel');
-    if (panel) swcc_clmp(panel);
-});
+    if (panel) swcc_rsp(panel);
+}
+
+function swcc_vwp() {
+    const vv = window.visualViewport;
+    if (vv) return { w: vv.width, h: vv.height, offX: vv.offsetLeft, offY: vv.offsetTop };
+    return { w: window.innerWidth, h: window.innerHeight, offX: 0, offY: 0 };
+}
 
 function sRGBtoLin(c) {
     c = c / 255;
@@ -138,37 +159,70 @@ function swcc_aaaOk(ratio, large) {
     return ratio >= (large ? 4.5 : 7.0);
 }
 
+function swcc_tgt(large, std) {
+    if (std === 'AAA') return large ? '4.5:1' : '7:1';
+    return large ? '3:1' : '4.5:1';
+}
+
+function swcc_tgtLbl(large, std) {
+    const val = swcc_tgt(large, std);
+    if (large) return std + ' Target: ' + val;
+    return 'Target: ' + val;
+}
+
+function swcc_actOk(ratio, large, std) {
+    if (std === 'AAA') return swcc_aaaOk(ratio, large);
+    return swcc_aaOk(ratio, large);
+}
+
+function swcc_resAll(ratio, large) {
+    return {
+        aa: { pass: swcc_aaOk(ratio, large), tgt: swcc_tgt(large, 'AA') },
+        aaa: { pass: swcc_aaaOk(ratio, large), tgt: swcc_tgt(large, 'AAA') }
+    };
+}
+
 function swcc_fail(ratio, large, std) {
     if (std === 'AAA') return !swcc_aaaOk(ratio, large);
     return !swcc_aaOk(ratio, large);
 }
 
-function swcc_clp(left, top, w, h) {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const minL = SWCC_MRG - w;
-    const maxL = vw - SWCC_MRG;
-    const minT = SWCC_MRG - h;
-    const maxT = vh - SWCC_MRG;
+function swcc_clp(left, top, w, h, v) {
+    v = v || swcc_vwp();
+    const minL = v.offX + SWCC_MRG - w;
+    const maxL = v.offX + v.w - SWCC_MRG;
+    const minT = v.offY + SWCC_MRG - h;
+    const maxT = v.offY + v.h - SWCC_MRG;
     return {
         left: Math.max(minL, Math.min(left, maxL)),
         top: Math.max(minT, Math.min(top, maxT))
     };
 }
 
-function swcc_max(w, h, left, top) {
-    const maxW = window.innerWidth - left - SWCC_MRG;
-    const maxH = window.innerHeight - top - SWCC_MRG;
+function swcc_max(w, h, left, top, v) {
+    v = v || swcc_vwp();
+    const maxW = v.offX + v.w - left - SWCC_MRG;
+    const maxH = v.offY + v.h - top - SWCC_MRG;
     return {
         width: Math.max(SWCC_MNW, Math.min(w, maxW)),
         height: Math.max(SWCC_MNH, Math.min(h, maxH))
     };
 }
 
+function swcc_fvw(v, w, h) {
+    const capW = Math.max(SWCC_MNW, v.w - SWCC_MRG * 2);
+    const capH = Math.max(SWCC_MNH, v.h - SWCC_MRG * 2);
+    return {
+        width: Math.max(SWCC_MNW, Math.min(w, capW)),
+        height: Math.max(SWCC_MNH, Math.min(h, capH))
+    };
+}
+
 function swcc_app(panel, save) {
     if (!panel || !swcc_p_st || !swcc_s_st) return;
-    const sized = swcc_max(swcc_s_st.width, swcc_s_st.height, swcc_p_st.left, swcc_p_st.top);
-    const pos = swcc_clp(swcc_p_st.left, swcc_p_st.top, sized.width, sized.height);
+    const v = swcc_vwp();
+    const sized = swcc_max(swcc_s_st.width, swcc_s_st.height, swcc_p_st.left, swcc_p_st.top, v);
+    const pos = swcc_clp(swcc_p_st.left, swcc_p_st.top, sized.width, sized.height, v);
     panel.style.right = 'auto';
     panel.style.left = pos.left + 'px';
     panel.style.top = pos.top + 'px';
@@ -179,9 +233,10 @@ function swcc_app(panel, save) {
 
 function swcc_clmp(panel) {
     if (!panel) return;
+    const v = swcc_vwp();
     const rect = panel.getBoundingClientRect();
-    const sized = swcc_max(rect.width, rect.height, rect.left, rect.top);
-    const pos = swcc_clp(rect.left, rect.top, sized.width, sized.height);
+    const sized = swcc_max(rect.width, rect.height, rect.left, rect.top, v);
+    const pos = swcc_clp(rect.left, rect.top, sized.width, sized.height, v);
     panel.style.right = 'auto';
     panel.style.left = pos.left + 'px';
     panel.style.top = pos.top + 'px';
@@ -189,7 +244,58 @@ function swcc_clmp(panel) {
     panel.style.height = sized.height + 'px';
 }
 
+function swcc_cent(panel, v) {
+    v = v || swcc_vwp();
+    const rect = panel.getBoundingClientRect();
+    const sized = swcc_fvw(v, rect.width, rect.height);
+    let left = v.offX + (v.w - sized.width) / 2;
+    let top = v.offY + (v.h - sized.height) / 2;
+    const pos = swcc_clp(left, top, sized.width, sized.height, v);
+    panel.style.right = 'auto';
+    panel.style.left = pos.left + 'px';
+    panel.style.top = pos.top + 'px';
+    panel.style.width = sized.width + 'px';
+    panel.style.height = sized.height + 'px';
+}
+
+function swcc_safe(panel, v) {
+    v = v || swcc_vwp();
+    const rect = panel.getBoundingClientRect();
+    const sized = swcc_fvw(v, Math.max(rect.width, SWCC_MNW), Math.max(rect.height, SWCC_MNH));
+    let left = v.offX + SWCC_MRG;
+    let top = v.offY + SWCC_MRG;
+    if (v.w >= SWCC_MNW) left = v.offX + Math.max(SWCC_MRG, (v.w - sized.width) / 2);
+    const pos = swcc_clp(left, top, sized.width, sized.height, v);
+    panel.style.right = 'auto';
+    panel.style.left = pos.left + 'px';
+    panel.style.top = pos.top + 'px';
+    panel.style.width = sized.width + 'px';
+    panel.style.height = sized.height + 'px';
+}
+
+function swcc_rsp(panel) {
+    if (!panel) return;
+    const v = swcc_vwp();
+    const inNrw = v.w >= SWCC_NW0 && v.w <= SWCC_NW1 && v.h >= SWCC_NH0;
+    if (v.w > SWCC_NW1) {
+        swcc_nrw = false;
+        swcc_nct = false;
+        if (swcc_p_st && swcc_s_st) swcc_app(panel, false);
+        return;
+    }
+    if (inNrw) {
+        const entering = !swcc_nrw;
+        swcc_nrw = true;
+        if (entering || !swcc_nct) swcc_cent(panel, v);
+        else swcc_clmp(panel);
+        return;
+    }
+    swcc_nrw = false;
+    swcc_safe(panel, v);
+}
+
 function swcc_sav(panel) {
+    if (swcc_nrw) return;
     const rect = panel.getBoundingClientRect();
     swcc_p_st = { left: rect.left, top: rect.top };
     swcc_s_st = { width: rect.width, height: rect.height };
@@ -215,6 +321,27 @@ function swcc_ui() {
     aaaBtn.classList.toggle('swcc-std-on', !isAA);
     const lbl = shadowRoot.getElementById('swcc-iss-lbl');
     if (lbl) lbl.textContent = 'Issues Found (' + swcc_act + '):';
+    swcc_sel();
+}
+
+function swcc_apOpc(panel) {
+    if (!panel) return;
+    panel.style.setProperty('--swcc-opc', (swcc_opc / 100).toString());
+}
+
+function swcc_setOpc(val) {
+    swcc_opc = Math.max(40, Math.min(100, Math.round(val / 5) * 5));
+    chrome.storage.local.set({ swcc_opc: swcc_opc });
+    const panel = shadowRoot && shadowRoot.querySelector('.mm-panel');
+    if (panel) swcc_apOpc(panel);
+    if (!shadowRoot) return;
+    const rng = shadowRoot.getElementById('swcc-opc-rng');
+    const valEl = shadowRoot.getElementById('swcc-opc-val');
+    if (rng) {
+        rng.value = swcc_opc;
+        rng.setAttribute('aria-valuenow', swcc_opc);
+    }
+    if (valEl) valEl.textContent = swcc_opc + '%';
 }
 
 function swcc_drg(panel, hdr) {
@@ -247,7 +374,8 @@ function swcc_drg(panel, hdr) {
         hdr.releasePointerCapture(e.pointerId);
         hdr.classList.remove('swcc-grab');
         document.body.style.userSelect = '';
-        swcc_sav(panel);
+        if (swcc_nrw) swcc_nct = true;
+        else swcc_sav(panel);
     };
     hdr.addEventListener('pointerup', endDrag);
     hdr.addEventListener('pointercancel', endDrag);
@@ -287,7 +415,7 @@ function swcc_rsz(panel, handle) {
         if (!swcc_r_on) return;
         swcc_r_on = false;
         handle.releasePointerCapture(e.pointerId);
-        swcc_sav(panel);
+        if (!swcc_nrw) swcc_sav(panel);
     };
     handle.addEventListener('pointerup', endRsz);
     handle.addEventListener('pointercancel', endRsz);
@@ -296,6 +424,7 @@ function swcc_rsz(panel, handle) {
 function scanPage() {
     clearOverlays();
     failedElementsData = [];
+    selectedElement = null;
 
     if (!document.getElementById('mm-global-styles')) {
         const style = document.createElement('style');
@@ -552,27 +681,48 @@ function createPanel() {
             </div>
 
             <div class="mm-editor-title">Selected Element</div>
-            
-            <div class="mm-result">
-                <div class="swcc-ratio-lbl">Contrast Ratio: <span id="mm-ratio">--.--</span></div>
-                <div class="mm-badges">
-                    <span id="b-aa" class="mm-badge fail">AA: Fail</span>
-                    <span id="b-aaa" class="mm-badge fail">AAA: Fail</span>
+            <div id="swcc-sel-wrap" class="swcc-sel-wrap">
+                <div id="swcc-sel-ok" class="swcc-sel-card swcc-sel-ok" hidden>
+                    <span class="swcc-sel-icon" aria-hidden="true">✓</span>
+                    <p class="swcc-sel-msg">No contrast issues to review.</p>
+                    <p class="swcc-sel-sub" id="swcc-sel-ok-sub"></p>
+                </div>
+                <div id="swcc-sel-pick" class="swcc-sel-card swcc-sel-pick" hidden>
+                    <p class="swcc-sel-msg">Select an issue to inspect it.</p>
+                    <p class="swcc-sel-sub">Choose an item from the issue list or click a highlighted element on the page.</p>
+                </div>
+                <div id="swcc-sel-unav" class="swcc-sel-card swcc-sel-unav" hidden>
+                    <p class="swcc-sel-msg">Contrast ratio unavailable.</p>
+                    <p class="swcc-sel-sub">This element could not be evaluated automatically.</p>
+                </div>
+                <div id="swcc-sel-edit" class="swcc-sel-edit" hidden>
+                    <div class="swcc-res-card mm-result">
+                        <div class="swcc-ratio-lbl">Contrast Ratio: <span id="swcc-ratio"></span></div>
+                        <div class="swcc-res-act">
+                            <span id="swcc-res-badge" class="swcc-res-badge"></span>
+                        </div>
+                        <div id="swcc-res-tgt" class="swcc-res-tgt"></div>
+                        <div id="swcc-res-more" class="swcc-res-more" hidden aria-hidden="true"></div>
+                    </div>
+                    <div class="mm-row">
+                        <label>Foreground</label>
+                        <div class="mm-input-group">
+                            <input type="color" id="fg-p"><input type="text" id="fg-t">
+                        </div>
+                    </div>
+                    <div class="mm-row">
+                        <label>Background</label>
+                        <div class="mm-input-group">
+                            <input type="color" id="bg-p"><input type="text" id="bg-t">
+                        </div>
+                    </div>
                 </div>
             </div>
-            
-            <div class="mm-row">
-                <label>Foreground</label>
-                <div class="mm-input-group">
-                    <input type="color" id="fg-p"><input type="text" id="fg-t">
-                </div>
-            </div>
-            <div class="mm-row">
-                <label>Background</label>
-                <div class="mm-input-group">
-                    <input type="color" id="bg-p"><input type="text" id="bg-t">
-                </div>
-            </div>
+        </div>
+        <div class="swcc-set-row">
+            <label class="swcc-opc-lbl" for="swcc-opc-rng">Panel transparency:</label>
+            <input type="range" id="swcc-opc-rng" class="swcc-opc-rng" min="40" max="100" step="5" value="100" aria-valuemin="40" aria-valuemax="100" aria-valuenow="100">
+            <span id="swcc-opc-val" class="swcc-opc-val" aria-live="polite">100%</span>
         </div>
         <div class="mm-footer">Press <b>Esc</b> to close</div>
         <div class="swcc-resize" role="presentation" aria-hidden="true"></div>
@@ -588,14 +738,56 @@ function createPanel() {
     shadowRoot.getElementById('mm-rescan').addEventListener('click', scanPage);
     shadowRoot.getElementById('swcc-std-aa').addEventListener('click', () => swcc_set('AA'));
     shadowRoot.getElementById('swcc-std-aaa').addEventListener('click', () => swcc_set('AAA'));
+    shadowRoot.getElementById('swcc-opc-rng').addEventListener('input', (e) => swcc_setOpc(+e.target.value));
     ['fg-p', 'fg-t', 'bg-p', 'bg-t'].forEach(id => {
         shadowRoot.getElementById(id).addEventListener('input', onInput);
     });
 
     swcc_ui();
-    if (swcc_p_st && swcc_s_st) swcc_app(panel, false);
+    swcc_setOpc(swcc_opc);
+    swcc_nct = false;
+    if (swcc_p_st && swcc_s_st && swcc_vwp().w > SWCC_NW1) swcc_app(panel, false);
+    else swcc_rsp(panel);
     swcc_drg(panel, hdr);
     swcc_rsz(panel, shadowRoot.querySelector('.swcc-resize'));
+    swcc_sel();
+}
+
+function swcc_vld(fg, bg, ratio) {
+    if (!selectedElement) return false;
+    if (typeof ratio !== 'number' || !isFinite(ratio) || ratio <= 0) return false;
+    if (!fg || !bg || !/^#[0-9A-F]{6}$/i.test(fg) || !/^#[0-9A-F]{6}$/i.test(bg)) return false;
+    return true;
+}
+
+function swcc_sel(fg, bg, ratio) {
+    if (!shadowRoot) return;
+    const ok = shadowRoot.getElementById('swcc-sel-ok');
+    const pick = shadowRoot.getElementById('swcc-sel-pick');
+    const unav = shadowRoot.getElementById('swcc-sel-unav');
+    const edit = shadowRoot.getElementById('swcc-sel-edit');
+    const okSub = shadowRoot.getElementById('swcc-sel-ok-sub');
+    const listEl = shadowRoot.getElementById('mm-summary-list');
+    const scanning = listEl && listEl.querySelector('.swcc-scan-msg');
+    [ok, pick, unav, edit].forEach(el => { if (el) el.hidden = true; });
+    if (selectedElement && swcc_vld(fg, bg, ratio)) {
+        edit.hidden = false;
+        return;
+    }
+    if (selectedElement && !swcc_vld(fg, bg, ratio)) {
+        unav.hidden = false;
+        return;
+    }
+    if (scanning) {
+        pick.hidden = false;
+        return;
+    }
+    if (failedElementsData.length === 0) {
+        ok.hidden = false;
+        if (okSub) okSub.textContent = 'All detected text passes the active ' + swcc_act + ' contrast standard.';
+        return;
+    }
+    pick.hidden = false;
 }
 
 function updateSummaryUI() {
@@ -614,6 +806,7 @@ function updateSummaryUI() {
             ? 'Great! No AAA contrast issues found.'
             : 'Great! No AA contrast issues found.';
         listContainer.innerHTML = '<div class="swcc-clean-msg">' + msg + '</div>';
+        swcc_sel();
         return;
     }
 
@@ -632,6 +825,7 @@ function updateSummaryUI() {
 
         listContainer.appendChild(item);
     });
+    swcc_sel();
 }
 
 function onInput(e) {
@@ -654,25 +848,35 @@ function onInput(e) {
 
 function updatePanelEditor(fg, bg, ratio) {
     if (!shadowRoot) return;
+    if (!swcc_vld(fg, bg, ratio)) {
+        swcc_sel(fg, bg, ratio);
+        return;
+    }
+    swcc_sel(fg, bg, ratio);
     shadowRoot.getElementById('fg-p').value = fg;
     shadowRoot.getElementById('fg-t').value = fg;
     shadowRoot.getElementById('bg-p').value = bg;
     shadowRoot.getElementById('bg-t').value = bg;
 
     const large = swcc_lrg(selectedElement);
-    const rEl = shadowRoot.getElementById('mm-ratio');
-    rEl.textContent = ratio.toFixed(2) + ':1';
+    const all = swcc_resAll(ratio, large);
+    const pass = swcc_actOk(ratio, large, swcc_act);
 
-    const aa = shadowRoot.getElementById('b-aa');
-    const aaa = shadowRoot.getElementById('b-aaa');
-    const aaPass = swcc_aaOk(ratio, large);
-    const aaaPass = swcc_aaaOk(ratio, large);
+    shadowRoot.getElementById('swcc-ratio').textContent = ratio.toFixed(2) + ':1';
 
-    aa.className = aaPass ? 'mm-badge pass' : 'mm-badge fail';
-    aa.textContent = aaPass ? 'AA: Pass' : 'AA: Fail';
+    const badge = shadowRoot.getElementById('swcc-res-badge');
+    badge.className = pass ? 'swcc-res-badge pass' : 'swcc-res-badge fail';
+    badge.textContent = swcc_act + ': ' + (pass ? 'Pass' : 'Fail');
 
-    aaa.className = aaaPass ? 'mm-badge pass' : 'mm-badge fail';
-    aaa.textContent = aaaPass ? 'AAA: Pass' : 'AAA: Fail';
+    shadowRoot.getElementById('swcc-res-tgt').textContent = swcc_tgtLbl(large, swcc_act);
+
+    const more = shadowRoot.getElementById('swcc-res-more');
+    if (more) {
+        more.dataset.aaPass = all.aa.pass ? '1' : '0';
+        more.dataset.aaaPass = all.aaa.pass ? '1' : '0';
+        more.dataset.aaTgt = all.aa.tgt;
+        more.dataset.aaaTgt = all.aaa.tgt;
+    }
 }
 
 function togglePanel(forceState = null) {
@@ -687,8 +891,13 @@ function togglePanel(forceState = null) {
         chrome.storage.local.set({ mm_wcag_active: true });
         if (shadowRoot) {
             swcc_ui();
+            swcc_setOpc(swcc_opc);
             const panel = shadowRoot.querySelector('.mm-panel');
-            if (panel && swcc_p_st && swcc_s_st) swcc_app(panel, false);
+            if (panel) {
+                swcc_nct = false;
+                if (swcc_p_st && swcc_s_st && swcc_vwp().w > SWCC_NW1) swcc_app(panel, false);
+                else swcc_rsp(panel);
+            }
         }
         setTimeout(scanPage, 100);
     } else {
