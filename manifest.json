@@ -3,7 +3,7 @@
   "name": "Simple WCAG Contrast Checker",
   "version": "1.0.0",
   "description": "Checks color contrast on the current page against WCAG contrast requirements.",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "scripting", "storage", "clipboardWrite"],
   "icons": {
     "16": "icon16.png",
     "48": "icon48.png",
