@@ -14,3 +14,4 @@ build/
 
 # MM Backup Extension
 MM-Backup/
+*.zip
