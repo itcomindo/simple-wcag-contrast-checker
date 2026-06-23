@@ -10,7 +10,6 @@ build/
 # Ignore .git folder
 .git/
 
-*.md
 .agents/
 
 # MM Backup Extension
