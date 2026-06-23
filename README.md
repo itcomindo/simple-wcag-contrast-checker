@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/hardawepro-logo-big-transparent.png" alt="Simple WCAG Contrast Checker logo" width="420">
+</p>
+
 # Simple WCAG Contrast Checker
 
 > A lightweight Chrome extension that checks color contrast on any webpage against WCAG AA and AAA requirements — no setup, no login, no external services.
@@ -26,7 +30,13 @@
 
 ## Screenshots
 
-> Screenshots are included in the [`docs/`](docs/) folder.
+<p align="center">
+  <img src="docs/screenshot-1.png" alt="Simple WCAG Contrast Checker scanning a webpage" width="32%">
+  <img src="docs/screenshot-2.png" alt="Simple WCAG Contrast Checker inspector panel" width="32%">
+  <img src="docs/screenshot-3.png" alt="Simple WCAG Contrast Checker live contrast editor" width="32%">
+</p>
+
+All product images are stored in the [`docs/`](docs/) folder.
 
 ---
 
@@ -114,7 +124,11 @@ simple-wcag-contrast-checker/
 ├── icon16.png          # Extension icon 16×16
 ├── icon48.png          # Extension icon 48×48
 ├── icon128.png         # Extension icon 128×128
-└── docs/               # Screenshots and promotional images
+└── docs/
+    ├── hardawepro-logo-big-transparent.png  # Extension logo
+    ├── screenshot-1.png                     # Product screenshot
+    ├── screenshot-2.png                     # Product screenshot
+    └── screenshot-3.png                     # Product screenshot
 ```
 
 ---
