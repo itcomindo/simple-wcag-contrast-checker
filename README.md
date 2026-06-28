@@ -8,7 +8,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Manifest Version](https://img.shields.io/badge/Manifest-V3-green.svg)](manifest.json)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Available-yellow.svg)](#installation)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/aloipkoikfeahobepfcophmdofpajeal.svg?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/aloipkoikfeahobepfcophmdofpajeal)
 
 ---
 
@@ -44,7 +44,9 @@ All product images are stored in the [`docs/`](docs/) folder.
 
 ### From Chrome Web Store _(recommended)_
 
-> **Coming soon** — the extension is currently under review.
+**[Install Simple WCAG Contrast Checker](https://chromewebstore.google.com/detail/aloipkoikfeahobepfcophmdofpajeal)**
+
+Click the link above, then click **Add to Chrome** on the Chrome Web Store page.
 
 ### Manual Installation (Developer Mode)
 

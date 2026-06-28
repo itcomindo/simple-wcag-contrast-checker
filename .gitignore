@@ -9,6 +9,8 @@ build/
 *.log
 # Ignore .git folder
 .git/
+# Ignore dummy files
+README-OLD.md
 
 .agents/
 
