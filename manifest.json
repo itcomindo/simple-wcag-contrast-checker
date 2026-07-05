@@ -2,7 +2,9 @@
   "manifest_version": 3,
   "name": "Simple WCAG Contrast Checker",
   "version": "1.0.0",
-  "description": "Checks color contrast on the current page against WCAG contrast requirements.",
+  "author": "HardaWebPro",
+  "homepage_url": "https://hardawebpro.com",
+  "description": "Scans any webpage and highlights text elements failing WCAG AA or AAA color contrast. Click any flagged element to inspect and fix colors in real time via a draggable panel.",
   "permissions": ["activeTab", "scripting", "storage", "clipboardWrite"],
   "icons": {
     "16": "icon16.png",
